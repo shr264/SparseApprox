@@ -1,0 +1,531 @@
+%% This is my HW 8 solution set.
+
+\documentclass[12pt, leqno]{article}
+\usepackage{amsfonts, amsmath, amssymb}
+\usepackage{amsbsy}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\newcounter{qcounter}
+%\usepackage[landscape]{geometry}% http://ctan.org/pkg/geometry
+%\usepackage{array}% http://ctan.org/pkg/array
+\usepackage[lofdepth,lotdepth]{subfig}
+\usepackage[maxfloats=40]{morefloats}
+\usepackage{float}
+\usepackage{}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{scalerel}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\providecommand{\abs}[1]{\lvert#1\rvert} % absolute value
+\providecommand{\normd}{\mathcal{N}} % normal distribution
+\providecommand{\norm}[1]{\lVert#1\rVert} % norm
+\usepackage{mathtools}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\sign}{sign}
+\DeclareMathOperator*{\trace}{trace}
+\newcommand{\macheps}{\epsilon_{\mbox{\scriptsize mach}}}
+\usepackage[ampersand]{easylist}
+\makeatletter
+\newcommand{\distas}[1]{\mathbin{\overset{#1}{\kern\z@\sim}}}%
+\newsavebox{\mybox}\newsavebox{\mysim}
+\newcommand{\distras}[1]{%
+  \savebox{\mybox}{\hbox{\kern3pt$\scriptstyle#1$\kern3pt}}%
+  \savebox{\mysim}{\hbox{$\sim$}}%
+  \mathbin{\overset{#1}{\kern\z@\resizebox{\wd\mybox}{\ht\mysim}{$\sim$}}}%
+}
+\makeatother
+
+
+\newtheorem{thm}{Theorem}
+\newtheorem{lem}{Lemma}
+\newtheorem{Def}{Definition}
+\newtheorem{prop}{Property}
+
+
+\begin{document}
+\pagestyle{fancy}
+\lhead{SR, NJ}
+\rhead{CIS6930}
+
+\begin{center}
+{\large {\bf Project Proposal}} \\
+{{\it Syed Rahman, Nikou Jah}} \\
+\end{center}
+
+\paragraph{Introduction} The goal of this project is to look at various
+optimization algorithms that solve the basic $\ell_1$ optimization
+problem as follows:
+\begin{align}
+\label{eq:lasso}
+& \argmin_{\beta} f(\beta) \\ 
+\nonumber 
+=& \argmin_{\beta} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda \norm{\beta}_1
+\end{align}
+The algorithms we will be looking at are the ISTA, FISTA, ADMM, Split
+Bregman methods (Syed Rahman) and the Message Passing Algorithm (Nikou Jah). The
+basic idea is to look at all these methods in details. This will include running our own simulations to compare times
+for each of these, study the effect of step-sizes and discuss convergence issues/properties wherever possible.
+
+\paragraph{Subgradent Methods:} Note that in  sub-gradient descent we have the basic update $$\beta^k = \beta^{k-1} - t_k g^{k-1},$$ 
+where $t_k$ is the step-size and $g^{k-1}$ is the sub-gradient. For our problem, the subgradient is $-X^t(y-X\beta) + \lambda s$ where 
+$$
+s_i = \begin{cases}
+\sign(\beta_i) &\text{ if } \beta_i \neq 0\\
+[-1,1] &\text{ if } \beta_i = 0
+\end{cases}
+$$
+For the subgradient, we will just use
+$$
+s_i = \begin{cases}
+\sign(\beta_i) &\text{ if } \beta_i \neq 0\\
+0 &\text{ if } \beta_i = 0
+\end{cases}
+$$
+For back-tracking line search, fix $\eta \in (0,1)$. At each iteration, while 
+$$
+F(\beta - t \partial F(\beta)) > F(\beta) - \frac{t}{2} \norm{\partial F(\beta)}^2
+$$
+let $t = \eta t$. Hence the goal is to find the smallest $i$ s.t. $$
+F(\beta - t \partial F(\beta)) < F(\beta) - \frac{\eta^i t}{2} \norm{\partial F(\beta)}^2
+$$ 
+Here $F(\beta) = \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda \norm{\beta}_1$ and $\partial F(\beta) = -X^t(y-X\beta) + \lambda s$
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $\beta^{old} \in \mathbb{R}^p$
+\State Set $t \in \mathbb{R}$
+\State Set $\beta^{new} \gets \beta^{old} - t (-X^t(y-X \beta^{old}) + \lambda s)$ where 
+$$s_i = \begin{cases}
+\sign(\beta^{old}_i) &\text{ if } \beta_i \neq 0\\
+0 &\text{ if } \beta^{old}_i = 0
+\end{cases}$$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+   \State Set $\beta^{new} \gets \beta^{old} - t (-X^t(y-X \beta^{old}) + \lambda s)$
+\EndWhile
+\end{algorithmic}
+\caption{Subgradeint Algorithm with fixed step size}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $\eta \in \mathbb{R}(0,1)$
+\State Set $\beta^{old} \in \mathbb{R}^p$
+\State Set $t = 1$
+\While {$F(\beta - \partial F(\beta)) > F(\beta) - \frac{t}{2} \norm{\partial F(\beta)}^2$}
+\State Set $t = \eta t$
+\EndWhile
+\State Set $\beta^{new} \gets \beta^{old} - t (-X^t(y-X \beta^{old}) + \lambda s)$ where 
+$$s_i = \begin{cases}
+\sign(\beta^{old}_i) &\text{ if } \beta_i \neq 0\\
+0 &\text{ if } \beta^{old}_i = 0
+\end{cases}$$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+\While {$F(\beta - \partial F(\beta)) > F(\beta) - \frac{t}{2} \norm{\partial F(\beta)}^2$}
+\State Set $t = \eta t$
+\EndWhile
+   \State Set $\beta^{new} \gets \beta^{old} - t (-X^t(y-X \beta^{old}) + \lambda s)$
+\EndWhile
+\end{algorithmic}
+\caption{Subgradeint Algorithm with diminishing step size}
+\end{algorithm}
+
+\begin{thm}
+For fixed step sizes, the sudgradient method satisfies 
+$$
+\lim_{k \to \infty} F(\beta^k) \leq F(\beta^*) + \frac{L^2t}{2}
+$$
+with convergenve rate of $O(\frac{1}{\sqrt{k}})$.
+\end{thm}
+where $\abs{F(\beta^1) - F(\beta^2)} \leq L \norm{\beta^1 - \beta^2}$
+
+\begin{thm}
+For diminshing step sizes, the sudgradient method satisfies 
+$$
+\lim_{k \to \infty} F(\beta^k) = F(\beta^*)
+$$
+with convergenve rate of $O(\frac{1}{\sqrt{k}})$.
+\end{thm}
+
+\pagebreak
+
+\paragraph{ISTA/FISTA} For this part, we look at {\it A Fast
+  Iterative Shrinkage Thresholding Algorithm
+for Linear Inverse Problems} by Amir Beck and Marc Teboulle. These are
+proximal gradient methods. The proximal operator for the $\ell_1$
+penalty, $h(\beta) = \lambda \norm{\beta}_1$ is 
+\begin{align*}
+\text{prox}_t(\beta) &= \argmin_{\eta} \frac{1}{2t} \norm{\beta-\eta}_2^2 + h(\eta)
+   \\
+&= \argmin_{\eta} \frac{1}{2t} \norm{\beta-\eta}_2^2 +
+  \lambda \norm{\eta}_1 \\
+ &= S_{\lambda t} (\beta)
+\end{align*}
+where $[S_{\lambda t} (x)]_i = \sign (x_i)* \max\{ \abs{x_i} - \lambda
+t, 0 \}$. In general, if we want to minimize $F(\beta) = g(\beta) + h(\beta)$, we do:
+\begin{align*}
+\beta^{(k)} = \text{prox}_{t_kh}(\beta^{(k-1)}-t_k \nabla g(\beta^{(k-1)}))
+\end{align*}
+To see why this works, note that
+\begin{align*}
+\beta^+ &= \argmin_{\eta} (h(\eta) + \frac{1}{2t} \norm{\eta - \beta + t \nabla g(\beta)}_2^2) \\
+&= ...\\
+&= \argmin_{\eta} (h(\eta) + g(\beta) + \nabla g(\beta)^t(\eta - \beta) + \frac{1}{2t} \norm{\eta - \beta}_2^2) 
+\end{align*}
+Hence, we are essentially minimizing $h(\eta)$ plus a simple local model of $g(\eta)$ around $\beta$. Recall, the $2^{nd}$ order Taylor series approximation to $g(\eta)$ near $\beta$ is 
+\begin{align*}
+g(\eta) =& g(\beta) + \nabla g(\beta)^t (\eta - \beta) + (\eta-\beta)^t \nabla^2 g(\beta) (\eta -\beta) \\
+&\leq  g(\beta) + \nabla g(\beta)^t (\eta - \beta) + L (\eta-\beta)^t (\eta -\beta)
+\end{align*}
+where the function $\nabla g(\beta)$ has Lipschitz constant $L$.
+Also note that the lasso objective function can be rewritten as
+$g(\beta) + h(\beta)$ here $h$ is as before and $g(\beta) =
+\frac{1}{2}\norm{y- X \beta}_2^2$. Then  $\nabla g(\beta) = -X^t (y -
+X \beta)$. Then the update for ISTA is as follows:
+\begin{align*}
+\beta^{k} = S_{\lambda t} (\beta^{k-1} + t X^t (y -
+X \beta^{k-1})) 
+\end{align*}
+In 1983, Nesterov proposed the following Accelarated gradient descent algorithm for convex, differentiable functions $g(\beta)$:
+\begin{enumerate}
+\item $\beta^{k+1} = \eta^{k} - t_k \nabla g(\eta^k)$
+\item $\eta^{k+1} = (1- \gamma_k) \beta^{k+1} + \gamma_k \beta^{k}$
+\end{enumerate}
+with convergence rate $O(\frac{1}{k^2})$. 
+FISTA is essentially a combination of this with proximal gradient methods. The update is as follows:
+\begin{align*}
+t_{k+1} &= \frac{1 + \sqrt{1+4t_k^2}}{2} \\
+\gamma &= \beta^{k-1} + \frac{t_k-1}{t_{k+1}} (\beta^{k-1} - \beta^{k-2}) \\
+\beta^{k} &= S_{\lambda t} (\gamma + t X^t (y -
+X \gamma)) 
+\end{align*}
+Finally, we will discuss convergence properties for the back-tracking
+line search. Note that in this case we know the Lipschitz constant to be $\lambda_{max} (X^t X)$, i.e. 
+\begin{align*}
+\norm{\nabla g(\beta_1) - \nabla g(\beta_2)}_2 & \leq L \norm{\beta_1 - \beta_2}_2 \\
+&= \lambda_{max}(X^t X) \norm{\beta_1 - \beta_2}_2
+\end{align*}
+Hence we can take $t = \frac{1}{\lambda_{max}(X^t X)}$.
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $t \gets \frac{1}{\lambda_{max}(X^t X)}$
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $\beta^{old} \in \mathbb{R}^p$
+\State Set $\beta^{new} \gets S_{\lambda t} (\beta^{old} + t X^t (y -
+X \beta^{old}))$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+   \State $\beta^{new} \gets S_{\lambda t} (\beta^{old} + t X^t (y -
+X \beta^{old}))$
+    \EndWhile
+\end{algorithmic}
+\caption{ISTA with fixed step size}
+\end{algorithm}
+
+If we didn't know the step-size we can use back-tracking line search. For this let $$F(\beta) = g(\beta) + h(\beta) = \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda \norm{\beta}_1$$
+and 
+$$
+Q_L(\beta^{new},\beta^{old}) = g(\beta^{old}) + <\beta^{new} - \beta^{old}, \nabla g (\beta^{old})> + \frac{L}{2} \norm{\beta^{new}-\beta^{old}}_2^2 + h(\beta^{new})
+$$
+
+Now if 
+\begin{align*}
+F(\beta^{new}) &> Q_L(\beta^{old},\beta^{new}) \\
+\iff g(\beta^{new}) + h(\beta^{new}) &> g(\beta^{old}) + <\beta^{new} - \beta^{old}, \nabla g (\beta^{old})> + \frac{L}{2} \norm{\beta^{new}-\beta^{old}}_2^2 + h(\beta^{new}) \\
+\iff g(\beta^{new}) &> g(\beta^{old}) + <\beta^{new} - \beta^{old}, \nabla g (\beta^{old})> + \frac{L}{2} \norm{\beta^{new}-\beta^{old}}_2^2 
+\end{align*}
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $\eta \in \mathbb{R}(0,1)$
+\State Set $\beta^{old} \in \mathbb{R}^p$
+\State Set $L^{old} > 0$
+\State Set $t = \frac{1}{L^{old}}$
+\State Find smallest integer $i$ such that $F(\beta^{new}) \leq Q_{L^{new}}(\beta^{new},\beta^{old})$ with $\frac{1}{L^{new}} = \eta^i \frac{1}{L^{old}}$ and $t = \frac{1}{L^{new}}$
+\State Set $\beta^{new} \gets S_{\lambda t} (\beta^{old} + t X^t (y -
+X \beta^{old}))$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+\State Find smallest integer $i$ such that $F(\beta^{new}) \leq Q_{L^{new}}(\beta^{new},\beta^{old})$ with $\frac{1}{L^{new}} = \eta^i \frac{1}{L^{old}}$ and $t = \frac{1}{L^{new}}$
+   \State $\beta^{new} \gets S_{\lambda t} (\beta^{old} + t X^t (y -
+X \beta^{old}))$
+    \EndWhile
+\end{algorithmic}
+\caption{ISTA with diminishing step size}
+\end{algorithm}
+
+The following theorem talks about the convergence rates of ISTA:
+\begin{thm}
+Let $\beta^k$ be a sequence generated by either of the ISTA algorithms as described above. Then for any $k\geq 1$
+$$
+F(\beta_k) - F(\beta^*) \leq \frac{\alpha L(g) \norm{\beta_0 - \beta^*}_2}{2k}
+$$
+where $\alpha = 1$ for constant step size and $\alpha = \eta$ for back-tracking line search.
+\end{thm}
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $t \gets \frac{1}{\lambda_{max}(X^t X)}$
+\State Set $t_1 \gets 1$
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $k \gets 1$
+\State Set $\beta^{old} \gets \zeta^0 \in \mathbb{R}^p$
+\State Set $\beta^{new} \gets S_{\lambda t} (\zeta^0 + t X^t (y -
+X \zeta^0))$
+\State $t_{k+1} \gets \frac{1 + \sqrt{1+4t_k^2}}{2}$
+\State $\zeta^{0} \gets \beta^{new} + \frac{t_k-1}{t_{k+1}}(\beta^{new} - \beta^{old})$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+	\State $\beta^{old} \gets \beta^{new}$
+   \State $\beta^{new} \gets S_{\lambda t} (\zeta^0 + t X^t (y -
+X \zeta^{0}))$
+\State $t_{k+1} \gets \frac{1 + \sqrt{1+4t_k^2}}{2}$
+\State $\zeta^{0} \gets \beta^{new} + \frac{t_k-1}{t_{k+1}}(\beta^{new} - \beta^{old})$
+\State $k \gets k+1$
+    \EndWhile
+\end{algorithmic}
+\caption{FISTA with fixed step size}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $t_1 \gets 1$
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $k \gets 1$
+\State Set $\beta^{old} \gets \zeta^0 \in \mathbb{R}^p$
+\State Find smallest integer $i$ such that $F(\beta^{new}) \leq Q_{L^{new}}(\beta^{new},\beta^{old})$ with $\frac{1}{L^{new}} = \eta^i \frac{1}{L^{old}}$ and $t = \frac{1}{L^{new}}$
+\State Set $\beta^{new} \gets S_{\lambda t} (\zeta^0 + t X^t (y -
+X \zeta^0))$
+\State $t_{k+1} \gets \frac{1 + \sqrt{1+4t_k^2}}{2}$
+\State $\zeta^{0} \gets \beta^{new} + \frac{t_k-1}{t_{k+1}}(\beta^{new} - \beta^{old})$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+	\State $\beta^{old} \gets \beta^{new}$
+\State Find smallest integer $i$ such that $F(\beta^{new}) \leq Q_{L^{new}}(\beta^{new},\beta^{old})$ with $\frac{1}{L^{new}} = \eta^i \frac{1}{L^{old}}$ and $t = \frac{1}{L^{new}}$
+   \State $\beta^{new} \gets S_{\lambda t} (\zeta^0 + t X^t (y -
+X \zeta^{0}))$
+\State $t_{k+1} \gets \frac{1 + \sqrt{1+4t_k^2}}{2}$
+\State $\zeta^{0} \gets \beta^{new} + \frac{t_k-1}{t_{k+1}}(\beta^{new} - \beta^{old})$
+\State $k \gets k+1$
+    \EndWhile
+\end{algorithmic}
+\caption{FISTA with diminishing step size}
+\end{algorithm}
+
+The following theorem talks about the convergence rates of FISTA:
+\begin{thm}
+Let $\beta^k$ be a sequence generated by either of the FISTA algorithms as described above. Then for any $k\geq 1$
+$$
+F(\beta_k) - F(\beta^*) \leq \frac{\alpha L(g) \norm{\beta_0 - \beta^*}_2}{(k+1)^2}
+$$
+where $\alpha = 1$ for constant step size and $\alpha = \eta$ for back-tracking line search.
+\end{thm}
+
+To adapt this for the $glasso$ problem as discussed last week, note that we want to minimize
+\begin{align*}
+&\log |\Omega| - \text{trace}(\Omega S) + \lambda \norm{\Omega}_1 \\
+=&\ell(\Omega) + \lambda \norm{\Omega}_1
+\end{align*}
+Now, $\nabla \ell(\Omega) = \Omega^{-1} - S$. Hence the ISTA update would be 
+\begin{enumerate}
+\item $\Omega^{new} = S_{\lambda t}(\Omega^{old} + t ((\Omega^{old})^{-1} - S))$
+\end{enumerate}
+Similarly, FISTA would be 
+\begin{enumerate}
+\item $\Omega^{new} = S_{\lambda t}(\zeta^{old} + t ((\zeta^{old})^{-1} - S))$
+\item $\zeta^{old} = \Omega^{new} + \frac{k-1}{k-2}(\Omega^{new}  - \Omega^{old} )$
+\end{enumerate}
+In both the above formulations the soft-thresholding is only applied to the off-diagonal elements of the matrices after initializing $\Omega_0 = \text{diag} (S) + \lambda I$
+
+\pagebreak
+
+
+\paragraph{ADMM} For this part, we refer to {\it Distributed Optimization and Statistical
+Learning via the Alternating Direction
+Method of Multipliers} by Stephen Boyd, Neal Parikh, Eric Chu
+Borja Peleato and Jonathan Eckstein. Note that we can restate
+Equation \ref{eq:lasso} of
+\begin{align*}
+\frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\beta}_1 
+\end{align*}
+as to solve this using ADMM we look at the augmented Lagrangian for: 
+\begin{align*}
+ \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\gamma}_1 + \frac{\rho}{2} \norm{\beta - \gamma}_2^2 \text{ s.t. } \beta = \gamma
+\end{align*}
+which is
+\begin{align*}
+L(\beta, \gamma, \eta) = \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\gamma}_1 + \frac{\rho}{2} \norm{\beta - \gamma}_2^2 + \eta^t(\beta - \gamma)
+\end{align*}
+The ADMM updates in this case are:
+\begin{enumerate}
+\item $\beta^{k} = \argmin_\beta L(\beta^{k-1}, \gamma, \eta)$
+\item $\gamma^{k} = \argmin_\gamma L(\beta, \gamma^{k-1}, \eta)$
+\item $\eta^{k} = \eta^{k-1}+ \rho(\beta - \gamma)$
+\end{enumerate}
+Step 3 is trivial. For step 1, we simply calculate the derivative and
+set it to 0. 
+\begin{align*}
+\nabla_\beta L(\beta, \gamma, \eta) &=  -X^t (y -X \beta) + \rho (\beta
+  - \gamma) + \eta \overset{set}{=} 0\\
+&\iff X^t (y -X \beta) - \rho \beta = - \rho \gamma + \eta \\ 
+&\iff + X^t X \beta + \rho \beta = + \rho \gamma - \eta + X^ty \\ 
+&\iff \beta =  (X^t X + \rho I)^{-1}  (\rho \gamma - \eta + X^ty) \\ 
+\end{align*}
+Finally for step 2, 
+\begin{align*}
+\partial_\gamma L(\beta, \gamma, \eta) = \lambda s + \rho (\gamma -
+  \beta)  - \eta
+\end{align*}
+where 
+\begin{align*}
+s_i = \begin{cases}
+1 &\text{ if } \gamma_i > 0 \\
+-1 &\text{ if } \gamma_i< 0 \\
+[-1,1] &\text{ if } \gamma_i = 0
+\end{cases}
+\end{align*}
+Thus, $\gamma = S_{\frac{\lambda}{\rho}}(\beta + \frac{\eta}{\rho})$.
+
+\begin{algorithm}
+\begin{algorithmic}
+\State Set $\epsilon \in \mathbb{R}$
+\State Set $\rho \in \mathbb{R}_+$
+\State $\beta^{old} \gets \gamma^{old} \gets \eta^{old} \in \mathbb{R}^p$
+   \State $\beta^{new} \gets (X^tX + \rho I)^{-1}(\rho \gamma^{old} - \eta^{old} + X^t y)$
+\State $\gamma^{new} = S_{\frac{\lambda}{\rho}}(\beta^{new} + \frac{\eta^{old}}{\rho})$
+\State  $\eta^{new} = \eta^{old}+ \rho(\beta^{new} - \gamma^{new})$
+\While {$\norm{\beta^{new} - \beta^{old}}_{\infty} \geq \epsilon$}
+	\State $\beta^{old} \gets \beta^{new}$
+\State $\gamma^{old} \gets \gamma^{new}$
+\State $\eta^{old} \gets \eta^{new}$
+   \State $\beta^{new} \gets (X^tX + \rho I)^{-1}(\rho \gamma^{old} - \eta^{old} + X^t y)$
+\State $\gamma^{new} \gets S_{\frac{\lambda}{\rho}}(\beta^{new} + \frac{\eta^{old}}{\rho})$
+\State  $\eta^{new} \gets \eta^{old}+ \rho(\beta^{new} - \gamma^{new})$
+    \EndWhile
+\end{algorithmic}
+\caption{ADMM}
+\end{algorithm}
+
+\pagebreak
+
+\paragraph{Split Bregman} For this part, we will refer to {\it Bregman Iterative Algorithms for $\ell_1$-Minimization with Applications to
+Compressed Sensing
+} by Wotao Yin, Stanley Osher, Donald Goldfarb and Jerome Darbon.
+The basic idea is similar to ADMM. 
+Note that the problem from Equation \ref{eq:lasso} can be restated as
+\begin{align*}
+ \min_{\beta,u} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+   \norm{u}_1 +
+  \frac{\mu}{2} \norm{\beta-u}_2^2
+\end{align*}
+Then the basic updates are:
+\begin{enumerate}
+\item  $(\beta^{k},u^{k}) = \argmin_{\beta,u} \frac{1}{2}\norm{y- X \beta^{k-1}}_2^2 + \lambda
+   \norm{u^{k-1}}_1 +
+  \frac{\mu}{2} \norm{\beta^{k-1}-u^{k-1} - b^{k-1}}_2^2 $
+\item $b^{k} = b^{k-1} + (\beta^{k} - u^{k})$
+\end{enumerate}
+For solving sparse group lasso problems it may be more useful. Suppose
+$\beta = \{\beta_g\}$ for ${g \in G}$.
+\begin{align}
+\label{eq:spglasso}
+& \min_{\beta} f_2(\beta) \\ 
+\nonumber 
+=& \min_{\beta} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda_1
+   \norm{\beta}_1 + \lambda_2 \sum_{g \in G} \norm{\beta_g}_2
+\end{align}
+This can be restated as
+\begin{align*}
+ \min_{\beta,u,v} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda_1
+   \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{v_g}_2 +
+  \frac{\mu_1}{2} \norm{\beta-u}_2^2 + \frac{\mu_2}{2} \norm{\beta-v}_2^2
+\end{align*}
+Then the basic updates are:
+\begin{enumerate}
+\item  $(\beta^{k},u^{k},v^{k}) = \argmin_{\beta,u,v} \frac{1}{2}\norm{y- X \beta^{k-1}}_2^2 + \lambda_1
+   \norm{u^{k-1}}_1 + \lambda_2 \sum_{g \in G} \norm{v_g^{k-1}}_2 +
+  \frac{\mu_1}{2} \norm{\beta^{k-1}-u^{k-1} - b^{k-1}}_2^2 + \frac{\mu_2}{2} \norm{\beta^{k-1}-v^{k-1}- c^{k-1}}_2^2$
+\item $b^{k} = b^{k-1} + (\beta^{k} - u^{k})$
+\item $c^{k} = c^{k-1} + (\beta^{k} - v^{k})$
+\end{enumerate}
+Now to apply this to sparse inverse covariance selection recall that we want so solve
+$$
+\min_{\Omega} \trace(S\Omega) - \log \abs{\Omega} + \lambda \norm{\Omega}_1
+$$
+which is equivalent to
+\begin{align*}
+&\min_{\Omega,Z} \trace(S\Omega) - \log \abs{\Omega} + \lambda \norm{Z}_1 \text{ s.t } \Omega = Z \\
+\iff &\min_{\Omega,Z,y} \trace(S\Omega) - \log \abs{\Omega} + \lambda \norm{Z}_1 + y^t (\Omega - Z) + \frac{\rho}{2} \norm{\Omega-Z+U}_F^2
+\end{align*}
+\pagebreak
+
+\paragraph{Approximate Message passing
+  algorithm}
+
+Compressed sensing is a framework of techniques which try to
+estimate high dimensional sparse vectors correctly. Most of these
+methods are very costly in the sense of computation because they need
+nonlinear scheme to recover unknown vectors. One class of these
+schemes used is linear programming(LP) methods to estimate sparse
+vectors. These methods, unlike the linear methods, are very
+expensive when you need to recover very huge number of
+unknown variables with thousands of constraints. The Message Passing
+Algorithm improves on these LP methods by using belief propagation theory in
+graphical models.
+
+The Message Passing Algorithm is basically trying to find the answer to the
+problem of finding $\mu_i (x_i )$  or generally $\mu_S (x_S )$ when
+$\mu(x_1 ,x_2 ,...,x_n)$ is given. By propagation we can attack this
+problem in some practical cases. Suppose $$\mu(x_1 ,x_2 ,....,x_n
+)=\frac{1}{Z}\prod_{a\in F}\psi_{a}(x_{S_{a}})$$ where $S_i \subset
+\{x_1 ,...,x_n \}$ and $S_i \cap S_J \neq \emptyset$ for some $ i$ and
+$j$. We can define a bipartite graph where $x_1 ,...,x_n$ is
+corresponding to variable nodes and
+$\psi_{a}(x_{S_{1}}),\psi_{b}(x_{S_{2}}),...$ is corresponding to
+factor nodes and there is an edge between factor node $a$ and variable
+node $i$ if $x_i \in S_a$. If we define $\partial a=\{i:x_i \in S_a \}
+$ and $\partial i=\{b:i \in S_b \} $  we are interested to find 
+$$\mu_{a\rightarrow j}(x_j )= \sum_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}\mu'_{l\rightarrow a}(x_l )$$
+and 
+$$\mu'_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}\mu_{b\rightarrow j}(x_j ).$$
+If we consider the iterative algorithm $$v^{t+1}_{a\rightarrow j}(x_j )= \sum_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}{v'}^{t}_{l\rightarrow a}(x_l
+)$$ 
+and 
+$${v'}^{t+1}_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}v^{t}_{b\rightarrow j}(x_j )$$ 
+under some circumstances 
+$$v^{t}_{b\rightarrow j}(x_j )\rightarrow \mu_{b\rightarrow j}(x_j )$$ 
+and 
+$${v'}^{t}_{b\rightarrow j}(x_j )\rightarrow \mu'_{j\rightarrow a}(x_j )$$ when $t\rightarrow \infty$.
+If $\mu$ is pdf on $\mathbb{R}^n$ we can extend the algorithm to 
+$$v^{t+1}_{a\rightarrow j}(x_j )= \int_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}{v'}^{t}_{l\rightarrow a}(x_l
+)$$ 
+and 
+$${v'}^{t+1}_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}v^{t}_{b\rightarrow j}(x_j ).$$
+Recall that the lasso problem is to minimize $$\frac{1}{2}\parallel
+y-Ax\parallel^{2}_{2}+\lambda\parallel x\parallel_{1}.$$ If we
+define $$\mu (dx)=\frac{1}{Z}e^{\frac{-\beta}{2}\parallel
+  y-Ax\parallel^{2}_{2}-\beta\lambda\parallel x\parallel_{1}}dx$$
+where $\beta>0$, as $\beta\rightarrow \infty$, $\mu$ concentrates
+around the solution of lasso ${x'}^{\lambda}$.Therefore by following the
+steps of message passing algorithm we can find the approximate
+solution of the lasso problem. This algorithm is called Approximate
+Message algorithm(AMS). As mentioned earlier, we will be reviewing this algorithm
+steps and analyzing its weaknesses and strengths.
+
+
+\end{document}

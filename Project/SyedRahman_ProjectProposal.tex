@@ -1,0 +1,151 @@
+%% This is my HW 8 solution set.
+
+\documentclass[12pt, leqno]{article}
+\usepackage{amsfonts, amsmath, amssymb}
+\usepackage{amsbsy}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\newcounter{qcounter}
+%\usepackage[landscape]{geometry}% http://ctan.org/pkg/geometry
+%\usepackage{array}% http://ctan.org/pkg/array
+\usepackage[lofdepth,lotdepth]{subfig}
+\usepackage[maxfloats=40]{morefloats}
+\usepackage{float}
+\usepackage{}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{scalerel}
+\providecommand{\abs}[1]{\lvert#1\rvert} % absolute value
+\providecommand{\normd}{\mathcal{N}} % normal distribution
+\providecommand{\norm}[1]{\lVert#1\rVert} % norm
+\usepackage{mathtools}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\sign}{sign}
+\newcommand{\macheps}{\epsilon_{\mbox{\scriptsize mach}}}
+\usepackage[ampersand]{easylist}
+\makeatletter
+\newcommand{\distas}[1]{\mathbin{\overset{#1}{\kern\z@\sim}}}%
+\newsavebox{\mybox}\newsavebox{\mysim}
+\newcommand{\distras}[1]{%
+  \savebox{\mybox}{\hbox{\kern3pt$\scriptstyle#1$\kern3pt}}%
+  \savebox{\mysim}{\hbox{$\sim$}}%
+  \mathbin{\overset{#1}{\kern\z@\resizebox{\wd\mybox}{\ht\mysim}{$\sim$}}}%
+}
+\makeatother
+%\usepackage{pdflscape}
+
+
+\begin{document}
+\pagestyle{fancy}
+\lhead{Syed Rahman}
+\rhead{CIS6930}
+
+\begin{center}
+{\large {\bf Project Proposal}} \\
+\end{center}
+
+\paragraph{} Let $f \in \mathbb{R}^N$ denote an image with $N$ pixels and $F$ be the 2-D Discrete Fourier Transform restricted to a partial set of frequencies. The partial Fourier data $p$ containing $n<N$ measurements, is obtained as $p = Ff$. Let $D_x$ and $D_y$ denote horizontal and vertical differential operators.  For the image $f$, the partial derivatives are obtained by $f_x =  D_x f$ and $f_y = D_y f$. The total variation-baed CS reconstruction is the result of the following optimization problem:
+$$
+\hat{f} = \argmin_{u \in \mathbb{R}^N} \lambda \norm{u}_{BV} + \norm{Fu-p}_2^2
+$$
+A similar problem is to solve the following problem:
+\begin{align*}
+[\hat{f}_x,\hat{f}_y]^T = \argmin_{v in \mathbb{R}^{2N}} \lambda \norm{v}_1 + \norm{Gv - p'}_2^2
+\end{align*}
+where $p_x = FD_xf$, $p_y = FD_yf$ and 
+\begin{align*}
+G = \begin{pmatrix} F & 0 \\
+0& F\\
+\gamma D_y & \gamma D_x
+\end{pmatrix}, 
+p' = \begin{pmatrix} p_x \\ p_y \\ 0 \end{pmatrix}
+\end{align*}
+What we propose to do in this project is add a group lasso penalty to the last objective function. Basically divide $v$ into groups, say $v_g, g \in G$ and add a penalty term to solve:
+\begin{align*}
+[\hat{f}_x,\hat{f}_y]^T = \argmin_{v \in \mathbb{R}^{2N}} \lambda_1 \norm{v}_1 + \lambda_2 \sum_{g \in G} \norm{v_g}_2 + \norm{Gv - p'}_2^2
+\end{align*}
+Some ideas for the groups are:
+\begin{enumerate}
+\item $g_i = \{v_i, v _{N+i}\}$
+\item $g_i = \{v_{i-1},v_{i},v_{i+1},v_{N+i-1},v_{N+i},v_{N+i-1},\}$
+\end{enumerate}
+and so on.
+For any group lasso problem, it is common to use the ADMM. Let $P(v) = \lambda_1 \norm{v}_1 + \lambda_2 \sum_{g \in G} \norm{v_g}_2$ . Then for ADMM the objective is defined as follows:
+\begin{align*}
+\argmin_{u, v \in \mathbb{R}^{2N}} \lambda_1 \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{u_g}_2 + \norm{Gv - p'}_2^2 + \frac{\rho}{2} \norm{u-v}_2^2 \text{ s.t. } u = v
+\end{align*}
+which becomes the augmented lagrangian
+\begin{align*}
+L(u,v,\lambda_3) = \lambda_1 \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{u_g}_2 + \norm{Gv - p'}_2^2 + \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v)
+\end{align*}
+The ADMM algorithm in this case is:
+\begin{enumerate}
+\item $u^{k+1} = \argmin_{u} L(u,v^{k},\lambda_3^{k})$
+\item $v^{k+1} = \argmin_{v} L(u^{k},v,\lambda_3^{k})$
+\item $\lambda_3^{k+1} = \lambda_3^{k} + \rho(u-v)$
+\end{enumerate}
+In the above, step 3 is trivial. In step 2 we have to minimize 
+\begin{align*}
+\norm{Gv - p'}_2^2 + \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v)
+\end{align*}
+Now,
+\begin{align*}
+&\frac{d}{dv} \norm{Gv - p'}_2^2 + \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v) \\ 
+&= 2G^t(Gv - p') + \rho(v-u) + \lambda_3
+\end{align*}
+Finally, to solve for step 1 we need to minimize w.r.t. $u$:
+\begin{align*}
+\lambda_1 \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{u_g}_2 + \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v)
+\end{align*}
+Let $k \in G$. Then, 
+\begin{align*}
+&\partial_{u_k} (\lambda_1 \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{u_g}_2 + \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v)) \\
+&= (\lambda_3)_k + \rho (u_k-v_k) + \lambda_1 t_k + \lambda_2 s_k
+\end{align*}
+where 
+$$
+(t_k)_j = \begin{cases} \sign((u_k)_j) \text{ if } (u_k)_j \neq 0 \\
+\in [-1,1]  \text{ if } (u_k)_j = 0 \\
+\end{cases}
+$$
+and
+$$
+s_k = \begin{cases} \frac{u_k}{\norm{u_k}_2} \text{ if } u_k \neq 0 \\
+\in \{u_k: \norm{u_k}_2 \leq 1\}  \text{ if } u_k = 0 \\
+\end{cases}
+$$
+First consider 
+\begin{align*}
+ &\min_u \frac{\rho}{2} \norm{u-v}_2^2 + \lambda_3^t(u-v))+ \lambda_1 \norm{u}_1 \\ 
+\iff& \min_u \frac{\rho}{2} (u^t u - 2v^t u) + \lambda_3^tu + \lambda_1 \norm{u}_1 \\
+\iff& \min_u  \sum_{i = 1}^n \big( \frac{\rho}{2}(u_i^2 - 2 v_i u_i) + (\lambda_3)_i u_i + \lambda_1 \abs{u_i} \big) \\
+\iff&  \sum_{i = 1}^n \min_{u_i}  \big( \frac{\rho}{2}(u_i^2 - 2 v_i u_i) + (\lambda_3)_i u_i + \lambda_1 \abs{u_i} \big) 
+\end{align*}
+
+Now consider
+\begin{align*}
+\min_{u_i}  \big( \frac{\rho}{2}(u_i^2 - 2 v_i u_i) + (\lambda_3)_i u_i + \lambda_1 \abs{u_i} \big) 
+\end{align*}
+and suppose $u_i> \lambda_1/\rho$. Then 
+\begin{align*}
+&\min_{u_i}  \big( \frac{\rho}{2}(u_i^2 - 2 v_i u_i) + (\lambda_3)_i u_i + \lambda_1 u_i\big) \\
+\implies & \rho (u_i-v_i)+ (\lambda_3)_i + \lambda_1 \overset{set}{=} 0 \\
+\iff & u_i =  \big( v_i- \frac{(\lambda_3)_i}{\rho} \big)- \frac{\lambda_1}{\rho} \\
+\end{align*}
+Similarly, if $u_i<-\lambda_1/\rho$, then $u_i \big( v_i- \frac{(\lambda_3)_i}{\rho} \big) + \frac{\lambda_1}{\rho}$. 
+In short, $u = S(v - \frac{1}{\rho} \lambda_3, \frac{\lambda_1}{\rho})$.
+Then  
+\begin{align*}
+&(\lambda_3)_k + \rho (u_k-v_k) + \lambda_1 t_k + \lambda_2 s_k = 0 \\
+&u_k = 0 \\
+&\iff \norm{S(v_k - \frac{1}{\rho} (\lambda_3)_k, \frac{\lambda_1}{\rho})}_2 \leq \lambda_2 \\
+\text{ and } \\
+&u_k \neq 0 \\
+&\iff  ((\lambda_3)_k)_j + \rho ((u_k)_j-(v_k)_j) + \lambda_1 \sign((u_k)_j) + \lambda_2  \frac{u_k}{\norm{u_k}_2}\\
+\end{align*}
+What happens when $(u_k)_j = 0$ vs $(u_k)_j \neq 0$? When $(u_k)_j = 0$, we have that $\abs{(v_k)_j - \frac{1}{\rho} ((\lambda_3)_k)_j} \leq \frac{\lambda_1}{\rho}$. When $(u_k)_j \neq 0$, ... 
+
+\end{document}

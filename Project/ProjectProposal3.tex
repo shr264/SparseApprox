@@ -1,0 +1,249 @@
+%% This is my HW 8 solution set.
+
+\documentclass[12pt, leqno]{article}
+\usepackage{amsfonts, amsmath, amssymb}
+\usepackage{amsbsy}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\newcounter{qcounter}
+%\usepackage[landscape]{geometry}% http://ctan.org/pkg/geometry
+%\usepackage{array}% http://ctan.org/pkg/array
+\usepackage[lofdepth,lotdepth]{subfig}
+\usepackage[maxfloats=40]{morefloats}
+\usepackage{float}
+\usepackage{}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{scalerel}
+\providecommand{\abs}[1]{\lvert#1\rvert} % absolute value
+\providecommand{\normd}{\mathcal{N}} % normal distribution
+\providecommand{\norm}[1]{\lVert#1\rVert} % norm
+\usepackage{mathtools}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\sign}{sign}
+\newcommand{\macheps}{\epsilon_{\mbox{\scriptsize mach}}}
+\usepackage[ampersand]{easylist}
+\makeatletter
+\newcommand{\distas}[1]{\mathbin{\overset{#1}{\kern\z@\sim}}}%
+\newsavebox{\mybox}\newsavebox{\mysim}
+\newcommand{\distras}[1]{%
+  \savebox{\mybox}{\hbox{\kern3pt$\scriptstyle#1$\kern3pt}}%
+  \savebox{\mysim}{\hbox{$\sim$}}%
+  \mathbin{\overset{#1}{\kern\z@\resizebox{\wd\mybox}{\ht\mysim}{$\sim$}}}%
+}
+\makeatother
+%\usepackage{pdflscape}
+
+
+\begin{document}
+\pagestyle{fancy}
+\lhead{SR, NJ}
+\rhead{CIS6930}
+
+\begin{center}
+{\large {\bf Project Proposal}} \\
+{{\it Syed Rahman, Nikou Sefat}} \\
+\end{center}
+
+\paragraph{Introduction} The goal of this project is to look at various
+optimization algorithms that solve the basic $\ell_1$ optimization
+problem as follows:
+\begin{align}
+\label{eq:lasso}
+& \argmin_{\beta} f(\beta) \\ 
+\nonumber 
+=& \argmin_{\beta} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda \norm{\beta}_1
+\end{align}
+The algorithms we will be looking at are the ISTA, FISTA, ADMM, Split
+Bregman methods (Syed Rahman) and the Message Passing Algorithm (Nikou Sefat). The
+basic idea is to look at all these methods in details. This will include running our own simulations to compare times
+for each of these, study the effect of step-sizes and discuss
+convergence issues/properties wherever possible. If time allows, we
+will explore applications to gaussian graphical models. 
+
+\paragraph{ISTA/FISTA} For this part, we look at {\it A Fast
+  Iterative Shrinkage Thresholding Algorithm
+for Linear Inverse Problems} by Amir Beck and Marc Teboulle. These are
+proximal gradient methods. The proximal operator for the $\ell_1$
+penalty, $h(\beta) = \lambda \norm{\beta}_1$ is 
+\begin{align*}
+\text{prox}_t(x) &= \argmin_{\beta} \frac{1}{2t} \norm{x-\beta}_2^2 +
+  \lambda \norm{\beta}_1 \\
+ &= S_{\lambda t} (x)
+\end{align*}
+where $[S_{\lambda t} (x)]_i = \sign (x_i)* \max\{ \abs{x_i} - \lambda
+t, 0 \}$.
+Also note that the lasso objective function can be rewritten as
+$g(\beta) + h(\beta)$ here $h$ is as before and $g(\beta) =
+\frac{1}{2}\norm{y- X \beta}_2^2$. Then  $\nabla g(\beta) = -X^t (y -
+X \beta)$. Then the update for ISTA is as follows:
+\begin{align*}
+\beta^{k} = S_{\lambda t} (\beta^{k-1} + t X^t (y -
+X \beta^{k-1})) 
+\end{align*}
+and the FISTA update is as follows:
+\begin{align*}
+\gamma &= \beta^{k-1} + \frac{k-2}{k-1} (\beta^{k-1} - \beta^{k-2}) \\
+\beta^{k} &= S_{\lambda t} (\gamma + t X^t (y -
+X \gamma)) 
+\end{align*}
+Finally, we will discuss convergence properties for the back-tracking
+line search.
+
+\paragraph{ADMM} For this part, we refer to {\it Distributed Optimization and Statistical
+Learning via the Alternating Direction
+Method of Multipliers} by Stephen Boyd, Neal Parikh, Eric Chu
+Borja Peleato and Jonathan Eckstein. Note that we can restate
+Equation \ref{eq:lasso} of
+\begin{align*}
+\frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\beta}_1 
+\end{align*}
+as to solve this using ADMM we look at the augmented Lagrangian for: 
+\begin{align*}
+ \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\gamma}_1 + \frac{\rho}{2} \norm{\beta - \gamma}_2^2 \text{ s.t. } \beta = \gamma
+\end{align*}
+which is
+\begin{align*}
+L(\beta, \gamma, \eta) = \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+  \norm{\gamma}_1 + \frac{\rho}{2} \norm{\beta - \gamma}_2^2 + \eta^t(\beta - \gamma)
+\end{align*}
+The ADMM updates in this case are:
+\begin{enumerate}
+\item $\beta^{k} = \argmin_\beta L(\beta^{k-1}, \gamma, \eta)$
+\item $\gamma^{k} = \argmin_\gamma L(\beta, \gamma^{k-1}, \eta)$
+\item $\eta^{k} = \eta^{k-1}+ \rho(\beta - \gamma)$
+\end{enumerate}
+Step 3 is trivial. For step 1, we simply calculate the derivative and
+set it to 0. 
+\begin{align*}
+\nabla_\beta L(\beta, \gamma, \eta) &=  -X^t (y -X \beta) + \rho (\beta
+  - \gamma) + \eta \overset{set}{=} 0\\
+&\iff X^t (y -X \beta) - \rho \beta = - \rho \gamma + \eta \\ 
+&\iff + X^t X \beta + \rho \beta = + \rho \gamma - \eta + X^ty \\ 
+&\iff \beta =  (X^t X + \rho I)^{-1}  (\rho \gamma - \eta + X^ty) \\ 
+\end{align*}
+Finally for step 2, 
+\begin{align*}
+\partial_\gamma L(\beta, \gamma, \eta) = \lambda s + \rho (\gamma -
+  \beta)  - \eta
+\end{align*}
+where 
+\begin{align*}
+s_i = \begin{cases}
+1 &\text{ if } \gamma_i > 0 \\
+-1 &\text{ if } \gamma_i< 0 \\
+[-1,1] &\text{ if } \gamma_i = 0
+\end{cases}
+\end{align*}
+Thus, $\gamma = S_{\frac{\lambda}{\rho}}(\beta + \frac{\eta}{\rho})$.
+
+\paragraph{Split Bregman} For this part, we will refer to {\it Bregman Iterative Algorithms for $\ell_1$-Minimization with Applications to
+Compressed Sensing
+} by Wotao Yin, Stanley Osher, Donald Goldfarb and Jerome Darbon.
+The basic idea is similar to ADMM. 
+Note that the problem from Equation \ref{eq:lasso} can be restated as
+\begin{align*}
+ \min_{\beta,u} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda
+   \norm{u}_1 +
+  \frac{\mu}{2} \norm{\beta-u}_2^2
+\end{align*}
+Then the basic updates are:
+\begin{enumerate}
+\item  $(\beta^{k},u^{k}) = \argmin_{\beta,u} \frac{1}{2}\norm{y- X \beta^{k-1}}_2^2 + \lambda
+   \norm{u^{k-1}}_1 +
+  \frac{\mu}{2} \norm{\beta^{k-1}-u^{k-1} - b^{k-1}}_2^2 $
+\item $b^{k} = b^{k-1} + (\beta^{k} - u^{k})$
+\end{enumerate}
+For solving sparse group lasso problems it may be more useful. Suppose
+$\beta = \{\beta_g\}$ for ${g \in G}$.
+\begin{align}
+\label{eq:spglasso}
+& \min_{\beta} f_2(\beta) \\ 
+\nonumber 
+=& \min_{\beta} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda_1
+   \norm{\beta}_1 + \lambda_2 \sum_{g \in G} \norm{\beta_g}_2
+\end{align}
+This can be restated as
+\begin{align*}
+ \min_{\beta,u,v} \frac{1}{2}\norm{y- X \beta}_2^2 + \lambda_1
+   \norm{u}_1 + \lambda_2 \sum_{g \in G} \norm{v_g}_2 +
+  \frac{\mu_1}{2} \norm{\beta-u}_2^2 + \frac{\mu_2}{2} \norm{\beta-v}_2^2
+\end{align*}
+Then the basic updates are:
+\begin{enumerate}
+\item  $(\beta^{k},u^{k},v^{k}) = \argmin_{\beta,u,v} \frac{1}{2}\norm{y- X \beta^{k-1}}_2^2 + \lambda_1
+   \norm{u^{k-1}}_1 + \lambda_2 \sum_{g \in G} \norm{v_g^{k-1}}_2 +
+  \frac{\mu_1}{2} \norm{\beta^{k-1}-u^{k-1} - b^{k-1}}_2^2 + \frac{\mu_2}{2} \norm{\beta^{k-1}-v^{k-1}- c^{k-1}}_2^2$
+\item $b^{k} = b^{k-1} + (\beta^{k} - u^{k})$
+\item $c^{k} = c^{k-1} + (\beta^{k} - v^{k})$
+\end{enumerate}
+
+\paragraph{Approximate Message passing
+  algorithm}
+
+Compressed sensing is a framework of techniques which try to
+estimate high dimensional sparse vectors correctly. Most of these
+methods are very costly in the sense of computation because they need
+nonlinear scheme to recover unknown vectors. One class of these
+schemes used is linear programming(LP) methods to estimate sparse
+vectors. These methods, unlike the linear methods, are very
+expensive when you need to recover very huge number of
+unknown variables with thousands of constraints. The Message Passing
+Algorithm improves on these LP methods by using belief propagation theory in
+graphical models.
+
+The Message Passing Algorithm is basically trying to find the answer to the
+problem of finding $\mu_i (x_i )$  or generally $\mu_S (x_S )$ when
+$\mu(x_1 ,x_2 ,...,x_n)$ is given. By propagation we can attack this
+problem in some practical cases. Suppose $$\mu(x_1 ,x_2 ,....,x_n
+)=\frac{1}{Z}\prod_{a\in F}\psi_{a}(x_{S_{a}})$$ where $S_i \subset
+\{x_1 ,...,x_n \}$ and $S_i \cap S_J \neq \emptyset$ for some $ i$ and
+$j$. We can define a bipartite graph where $x_1 ,...,x_n$ is
+corresponding to variable nodes and
+$\psi_{a}(x_{S_{1}}),\psi_{b}(x_{S_{2}}),...$ is corresponding to
+factor nodes and there is an edge between factor node $a$ and variable
+node $i$ if $x_i \in S_a$. If we define $\partial a=\{i:x_i \in S_a \}
+$ and $\partial i=\{b:i \in S_b \} $  we are interested to find 
+$$\mu_{a\rightarrow j}(x_j )= \sum_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}\mu'_{l\rightarrow a}(x_l )$$
+and 
+$$\mu'_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}\mu_{b\rightarrow j}(x_j ).$$
+If we consider the iterative algorithm $$v^{t+1}_{a\rightarrow j}(x_j )= \sum_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}{v'}^{t}_{l\rightarrow a}(x_l
+)$$ 
+and 
+$${v'}^{t+1}_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}v^{t}_{b\rightarrow j}(x_j )$$ 
+under some circumstances 
+$$v^{t}_{b\rightarrow j}(x_j )\rightarrow \mu_{b\rightarrow j}(x_j )$$ 
+and 
+$${v'}^{t}_{b\rightarrow j}(x_j )\rightarrow \mu'_{j\rightarrow a}(x_j )$$ when $t\rightarrow \infty$.
+If $\mu$ is pdf on $\mathbb{R}^n$ we can extend the algorithm to 
+$$v^{t+1}_{a\rightarrow j}(x_j )= \int_{\{x_j
+:j\in \partial a\setminus j\}}\psi_{a}(x_{\partial
+a})\prod_{\{l\in \partial a\setminus j\}}{v'}^{t}_{l\rightarrow a}(x_l
+)$$ 
+and 
+$${v'}^{t+1}_{j\rightarrow a}(x_j )=\prod_{\{b\in \partial j\setminus
+  a\}}v^{t}_{b\rightarrow j}(x_j ).$$
+Recall that the lasso problem is to minimize $$\frac{1}{2}\parallel
+y-Ax\parallel^{2}_{2}+\lambda\parallel x\parallel_{1}.$$ If we
+define $$\mu (dx)=\frac{1}{Z}e^{\frac{-\beta}{2}\parallel
+  y-Ax\parallel^{2}_{2}-\beta\lambda\parallel x\parallel_{1}}dx$$
+where $\beta>0$, as $\beta\rightarrow \infty$, $\mu$ concentrates
+around the solution of lasso ${x'}^{\lambda}$.Therefore by following the
+steps of message passing algorithm we can find the approximate
+solution of the lasso problem. This algorithm is called Approximate
+Message algorithm(AMS). As mentioned earlier, we will be reviewing this algorithm
+steps and analyzing its weaknesses and strengths.
+
+
+\end{document}
